@@ -172,8 +172,6 @@ func main() {
 		os.Exit(-1)
 	}
 
-	flag.Parse()
-
 	if config.Host == "" {
 		config.Host = *hostname
 	}
