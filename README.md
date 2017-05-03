@@ -1,0 +1,2 @@
+# relayd
+simple mail relay
