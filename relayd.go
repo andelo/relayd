@@ -263,29 +263,56 @@ func main() {
 		Handler: func(peer smtpd.Peer, env smtpd.Envelope) error {
 			for _, recipient := range env.Recipients {
 
+				// get alias email source -> destination
 				alias, err := getAlias(aliases, recipient)
 
 				if err == nil {
-					log.Println("received email for " + recipient + " and forwarding to " + alias.Destination)
-
 					ix := strings.Index(alias.Destination, "@")
 					domain := alias.Destination[ix+1:]
-					relay := getMX(domain)
-					recipients := []string{alias.Destination}
-					if relay != "" {
-						mailhost := relay + ":smtp"
-						return smtp.SendMail(
-							mailhost,
-							nil,
-							env.Sender,
-							recipients,
-							env.Data,
-						)
+					servername := getMX(domain)
+
+					if servername != "" {
+						log.Println("received email for " + recipient + " and forwarding to " + alias.Destination + " via " + servername)
+						mailhost := servername + ":smtp"
+						smtpConn, connErr := net.Dial("tcp", mailhost)
+
+						if connErr != nil {
+							log.Println("connect error for "+mailhost, connErr)
+							return connErr
+						}
+
+						client, smtpErr := smtp.NewClient(smtpConn, servername)
+						if smtpErr != nil {
+							log.Println("failed to create client for "+mailhost, smtpErr)
+							return smtpErr
+						}
+						err = client.Mail(env.Sender)
+						if err != nil {
+							log.Println("mail-from error", err)
+							return err
+						}
+						err = client.Rcpt(alias.Destination)
+						if err != nil {
+							log.Println("rcpt-to error", err)
+							return err
+						}
+
+						data, writeErr := client.Data()
+
+						_, writeErr = data.Write(env.Data)
+
+						if writeErr != nil {
+							log.Println("failed to write data to "+mailhost, writeErr)
+							return writeErr
+						}
+
+						data.Close()
+						client.Quit()
 					}
 				}
+
 			}
-			rcpt := strings.Join(env.Recipients, ",")
-			return errors.New("recipient not found for " + rcpt)
+			return nil
 		},
 
 		RecipientChecker: func(peer smtpd.Peer, addr string) error {
