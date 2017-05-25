@@ -287,6 +287,7 @@ func main() {
 							return smtpErr
 						}
 						err = client.Mail(env.Sender)
+						defer client.Quit()
 						if err != nil {
 							log.Println("mail-from error", err)
 							return err
@@ -298,6 +299,7 @@ func main() {
 						}
 
 						data, writeErr := client.Data()
+						defer data.Close()
 
 						_, writeErr = data.Write(env.Data)
 
@@ -306,8 +308,6 @@ func main() {
 							return writeErr
 						}
 
-						data.Close()
-						client.Quit()
 					}
 				}
 
